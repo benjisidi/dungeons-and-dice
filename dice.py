@@ -17,7 +17,10 @@ class Dice:
     def roll_n(self, n):
         return [self.roll() for i in range(n)]
 
+    def expected_result(self):
+        return [n * 1 / d * (1 + d) * d / 2 for (n, d) in self.dice]
+
 
 if __name__ == "__main__":
-    test = Dice([(2, 4), (3, 6)])
-    print(test.roll_n(5))
+    test = Dice([(1, 4), (2, 6)])
+    print(test.expected_result())
