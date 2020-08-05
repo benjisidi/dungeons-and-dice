@@ -36,8 +36,8 @@ To tackle (2), I define a ***cluster*** of dice (a collective noun I stole from 
 Using this, we can roll a cluster by simply calling `roll` on each of its elements. To roll a cluster more than once, we repeat this *n* times.
 
 ```python
-def roll_cluster(dice_list, n=1):
-    return [[roll(n, f) for (n, f) in dice_list] for i in range(n)]
+def roll_cluster(cluster, n=1):
+    return [[roll(n, f) for (n, f) in cluster] for i in range(n)]
 ```
 
 ## Expected results
@@ -68,13 +68,65 @@ $$
 or in Python (repeating for each set of dice in our cluster)
 
 ```python
-def expected_result(dice_list):
-    return [n * (f + 1) / 2 for (n, f) in dice_list]
+def expected_result(cluster):
+    return [n * (f + 1) / 2 for (n, f) in cluster]
 ```
 
 ## Successes and failures
 
-We can now performantly calculate the expected result of any arbitrary cluster of dice, which is quite nice (for example, if we want to know the average damage of a particular weapon). When playing, we’re often more interested in rolling *at least some threshold value*. Ability checks, attack rolls and saving throws all depend on this mechanism.
+We can now performantly calculate the expected result of any arbitrary cluster of dice, which is quite nice (for example, if we want to know the average damage of a particular weapon). When playing, we’re often more interested in rolling *at least some threshold value*. Ability checks, attack rolls and saving throws all depend on this mechanism. To do this, we’re going to need to be able to calculate the number of ways of rolling a given value using a cluster.
+
+### Probability of rolling exactly *t* on *n* identical dice
+
+To tackle this, we’ll use generating functions as it is by far the most straightforward way to do it, and results in quite neat code ([click here](https://www.youtube.com/watch?v=n9FFBXBccow) for a quick introduction to what generating functions are).
+
+The generating function for *1df* is 
+$$
+G(x, 1, f) = x^1 + ... + x^f
+$$
+since we have a single way of rolling any value in $[1,f]$. To get the generating function for *ndf*, we simply take this to the n^th^ power:
+$$
+G(x,n,f) = (x^1 +...+x^f)^n
+$$
+The number of ways of getting $t$ when rolling $ndf$ is simply the coefficient of $x^t$ in $G(x,n,f)$. For convenience going forward, we’ll call this quantity 
+$$
+\begin{align}
+N(t,n,f) &= \textit{# of ways of rolling t on ndf} \\
+ &= \textit{coefficient of $x^t$ in $G(x, n, f)$}
+\end{align}
+$$
+Conveniently, numpy has a very fast function for evaluating powers of polynomials:
+
+```python
+np.polynomial.polynomial.polypow(poly, power)
+```
+
+returns an array of the coefficients of the resulting polynomial in ascending order. After catching the trivial cases, we can use it to evaluate the # of ways of rolling any quantity we wish:
+
+```python
+def N(t, n, f):
+    if t > n * f or t < n:
+        return 0
+    if t == n * f or t == n:
+        return 1
+    return np.polynomial.polynomial.polypow([0, *[1 for i in range(f)]], n)[t]
+```
+
+The *probability* of rolling a exactly $t$ on $ndf$ is $N(t, n, f)$ divided by the total number of possible rolls, which is just $f^n$:
+$$
+p(t,n,f) = \frac{1}{f^n}N(t,n,f)
+$$
+
+### Probability of rolling exactly *t* using an arbitrary cluster of dice
+
+We now need to extend our expressions for $N$ and $p$ to arbitrary clusters. Imagine we are trying to roll a target total $t$, and have already rolled dice totalling $s$. This means we have $r = t - s$ remaining. On our next roll:
+
+1. The maximum we can roll on the current set assumes we roll the minimum value (one * number of dice) for all subsequent sets.
+2. The minimum we must roll on the current set assumes we roll the maximum value (number of faces * number of dice) for all subsequent sets.
+
+This means we can calculate the number of ways of getting $t$ by calculating the number of ways to get the minimum roll on the first set, added to all valid subsequent rolls on the second set, etc.
+
+
 
 ### Probability of rolling greater than a threshold value on a single die
 
@@ -83,4 +135,66 @@ This is the simplest and most straightforward problem - what is the probability 
 The probability of rolling greater than $t$ on *1df* is the number of faces greater than *t*, divided by the total number of faces.
 $$
 p(1df \gt t) = \frac{f-t}{f} = 1-\frac{t}{f}
+$$
+
+
+
+### Probability of rolling greater than a threshold value on *n* identical dice
+
+Here things get interesting: we want *the number of results that sum to greater than t, divided by the total number of possible results*. The second quantity is easy to calculate
+$$
+\textit{# of possible outcomes from ndf dice} = f^n
+$$
+To get the first quantity, we’ll need to begin with the number of results that sum to a specific quantity, and then add those up. To simplify our notation, let’s define *“the number of ways of rolling x on ndf”* as $N(x, n, f)$. Using this:
+$$
+\begin{align}
+N(x, n, f) &= 0 \;\; x \le 0 \label{invalidRolls} \\
+N(x, 1, f) &=
+	\begin{cases}
+		1 & 0 \lt x \le f \\
+		0 & otherwise
+	\end{cases} \label{singleRoll} \\
+\end{align}
+$$
+($\ref{invalidRolls}$) states that the number of ways of rolling 0 or below on any number of dice is zero. ( $\ref{singleRoll}$) states there is one way to roll each valid number on a single die. At this point, we’re going to keep running into piecewise functions wherever we have to worry about numbers being “valid”. To avoid this muddying the algebra, from now on we’ll assume the results and dice we are attempting to roll are reasonable. In practice, we’ll want to catch these to make sure our code doesn’t fall over on invalid input, and instead reports, for example, that the probability of rolling a 7 on $1d6$ is 0.
+$$
+\textit{When calculating $N(x,n,f)$, we assume} \\
+n \le x \le nf \\
+\textit{and when summing rolls $\sum_{x=a}^{b}f(x)$, we assume} \\
+a \le b
+$$
+Given these, we can look at the number of ways to roll greater than a threshold $t$ on $1df$:
+$$
+N(\gt t, 1, f) = \sum_{i=t+1}^{f} N(i,1,f) = f-t \label{singleSum}
+$$
+($\ref{singleSum}$) states the sum of the number of ways to roll greater than $a$ on $1df$ is simply the difference between $f$ and $t$. This makes sense intuitively - if we want to roll greater than $t$, we take the the total number of possible rolls ($f$) and subtract the number of rolls less than or equal to $a$, which is a sequence $[1, t]$ of length $t$.
+
+Next, let’s extend this to two dice. If I want to roll greater than $t$ on two dice and the most I can roll on a single die is $f$, I must roll at least $t-f$ on the first roll. If on the first die I roll $i$, I must then roll $t - i$ on the second die to get $t$.
+$$
+\begin{align}
+N(>t,2,f) &= \sum_{i=t-f}^{f}N(i,1,f)N(t-i,1,f) \\
+ &= \sum_{i=t-f}^{f} 1 \\
+ &= f - (t - f) \label{doubleSum} \\
+ &= 2f - t 
+\end{align}
+$$
+($\ref{doubleSum}$) basically states *the number of ways to roll greater than t on two dice is equal to the number of valid first-die rolls*, which again makes sense intuitively.
+
+To extend this to higher numbers of dice, we’re going to need an expression for the number of ways to roll a *particular* value, rather than *greater than* a value. We can apply the same logic here: if I wish to roll exactly $t$ on two dice, the minimum value for my first roll $i$ is $t-f$ and my second roll is fixed at $t-i$. Additionally, the *maximum* value for my first roll is $t-1$, since I can’t roll a 0 on the second die. So, the total number of options is $len([t-f, t-1]) = t-f - (t-1) + 1$. We arrive at almost the same expression, just with slightly different limits: len([t-f, t-1]) t-1 - t-f = f - 1
+$$
+\begin{align}
+N(t, 2, f) &= \sum_{i=t-f}^{t-1} N(i, 1, f)N(t-i, 1, f) \\
+ &= \sum_{i=t-f}^{t-1} 1 \\
+ &= (t - 1) - (t - f) \\
+ &= f - 1
+\end{align}
+$$
+
+
+Let’s extend this one more time to $3df$, and then see if we can get a general solution for $ndf$.
+$$
+\begin{align}
+N(\gt t,3,f) &= \sum_{i=t-2f}^{f} N(i,1,f)N(t-i,2,f) \\
+ &= \sum_{i=x-f}^{f}
+\end{align}
 $$
