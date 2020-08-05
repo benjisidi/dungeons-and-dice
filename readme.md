@@ -72,4 +72,15 @@ def expected_result(dice_list):
     return [n * (f + 1) / 2 for (n, f) in dice_list]
 ```
 
+## Successes and failures
 
+We can now performantly calculate the expected result of any arbitrary cluster of dice, which is quite nice (for example, if we want to know the average damage of a particular weapon). When playing, we’re often more interested in rolling *at least some threshold value*. Ability checks, attack rolls and saving throws all depend on this mechanism.
+
+### Probability of rolling greater than a threshold value on a single die
+
+This is the simplest and most straightforward problem - what is the probability of rolling greater than *t* on *1df*. In dungeons and dragons, we are more often concerned with rolling *at least/greater than or equal to* some value - but the problem stated in the above form is more neatly solved, and one can simply subtract one from the desired threshold to obtain the same result - so we’ll stick with *greater than* for now.
+
+The probability of rolling greater than $t$ on *1df* is the number of faces greater than *t*, divided by the total number of faces.
+$$
+p(1df \gt t) = \frac{f-t}{f} = 1-\frac{t}{f}
+$$
