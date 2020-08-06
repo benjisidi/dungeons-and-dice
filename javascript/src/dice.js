@@ -39,7 +39,7 @@ const waysToRollCluster = (target, cluster) => clusterPowerset(cluster).coeff[ta
 
 const pOfRolling = (target, set) => waysToRoll(target, set) / Math.pow(set[1], set[0])
 
-const pDistributionCluster = (cluster) => {
+const clusterPDistribution = (cluster) => {
   const totalPossibilities = cluster.reduce((total, set) => {
     const power = Math.pow(set[1], set[0])
     return total * power
@@ -50,7 +50,7 @@ const pDistributionCluster = (cluster) => {
 }
 
 const pOfRollingCluster = (target, cluster) => {
-  return pDistributionCluster(cluster).coeff[target]
+  return clusterPDistribution(cluster).coeff[target]
 }
 
-
+export { clusterPDistribution }
