@@ -1,0 +1,13 @@
+{
+  "name": "dungeons-and-dice",
+  "version": "0.1.0",
+  "main": "dice.js",
+  "license": "MIT",
+  "author": {
+    "name": "Benjamin Sidi",
+    "email": "benjisidi@gmail.com"
+  },
+  "dependencies": {
+    "polynomial": "^1.4.5"
+  }
+}

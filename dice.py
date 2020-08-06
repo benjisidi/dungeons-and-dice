@@ -5,13 +5,26 @@ import numpy as np
 import random
 import timeit
 
+#   Nomenclature:
+#     A _set_ of dice is a collection of n dice all with the same number of faces, f,
+#       denoted ndf - eg, three six-sided die would be the set 3d6. These are represented
+#       as a tuple [n, f]
+#       (since set is a python keyword, they are referred to as set_ in the code)
+#     A _cluster_ of dice is a collection of N sets, represented as a 2xN matrix:
+#     [
+#       [ n1, f1 ],
+#       [ n2, f2 ],
+#       ...,
+#       [ nN, fN ]
+#     ]
 
-def roll(n, f):
+
+def roll_set(n, f):
     return [random.randint(1, f) for i in range(n)]
 
 
 def roll_cluster(cluster, n=1):
-    return [[roll(n, f) for (n, f) in cluster] for i in range(n)]
+    return [[roll_set(n, f) for (n, f) in cluster] for i in range(n)]
 
 
 def expected_result(cluster):
@@ -22,44 +35,44 @@ def powerset(n, f):
     return np.polynomial.polynomial.polypow([0, *[1 for i in range(f)]], n)
 
 
-def N(t, n, f):
-    if t > n * f or t < n:
-        return 0
-    if t == n * f or t == n:
-        return 1
-    return powerset[t]
-
-
-def p(t, n, f):
-    return N(t, n, f) / (f ** n)
-
-
-def handful_N_set(clusters):
+def cluster_powerset(sets):
     overall_powerset = [1]
-    for cluster in clusters:
+    for set_ in sets:
         overall_powerset = np.polynomial.polynomial.polymul(
-            overall_powerset, powerset(*cluster)
+            overall_powerset, powerset(*set_)
         )
     return overall_powerset
 
 
-def handful_p_set(clusters):
-    ni = clusters[:, 0]
-    fi = clusters[:, 1]
+def ways_to_roll(target, n, f):
+    if target > n * f or target < n:
+        return 0
+    if target == n * f or target == n:
+        return 1
+    return powerset[target]
+
+
+def ways_to_roll_cluster(target, cluster):
+    return cluster_powerset(cluster)[target]
+
+
+def p_of_rolling(target, n, f):
+    return ways_to_roll(target, n, f) / (f ** n)
+
+
+def cluster_p_distribution(cluster):
+    ni = cluster[:, 0]
+    fi = cluster[:, 1]
     total = np.product([np.power(f, ni[i], dtype=float) for (i, f) in enumerate(fi)])
-    return handful_N_set(clusters) / total
+    return cluster_powerset(cluster) / total
 
 
-def handful_N(clusters, t):
-    return handful_N_set(clusters)[t]
+def p_of_rolling_cluster(target, cluster):
+    return cluster_p_distribution(cluster)[target]
 
 
-def handful_p(clusters, t):
-    return handful_p_set(clusters)[t]
-
-
-def plot_N(n, f):
-    data = [N(i, n, f) for i in range(n, n * f + 1)]
+def plot_powerset(n, f):
+    data = [ways_to_roll(i, n, f) for i in range(n, n * f + 1)]
     x = range(n, n * f + 1)
     plt.scatter(x, data)
     plt.ylabel(f"N({n},d,{f})")
@@ -68,8 +81,8 @@ def plot_N(n, f):
     plt.show()
 
 
-def plot_p(n, f, cumulative=False):
-    data = [p(i, n, f) for i in range(n, n * f + 1)]
+def plot_p_distribution(n, f, cumulative=False):
+    data = [p_of_rolling(i, n, f) for i in range(n, n * f + 1)]
     if cumulative:
         data = np.cumsum(data)
     x = range(n, n * f + 1)
@@ -82,25 +95,25 @@ def plot_p(n, f, cumulative=False):
     plt.show()
 
 
-def plot_handful_n(clusters):
-    ni = clusters[:, 0]
-    fi = clusters[:, 1]
-    data = np.trim_zeros(handful_N_set(clusters))
+def plot_cluster_powerset(cluster):
+    ni = cluster[:, 0]
+    fi = cluster[:, 1]
+    data = np.trim_zeros(cluster_powerset(cluster))
     x = range(np.sum(ni), np.sum(ni * fi) + 1)
     plt.scatter(x, data)
     plt.ylabel("# of ways of rolling t")
     plt.xlabel("t")
     plt.title(
-        f"Outcome distribution for {'+ '.join([f'{n}d{f}' for (n, f) in clusters])}"
+        f"Outcome distribution for {'+ '.join([f'{n}d{f}' for (n, f) in cluster])}"
     )
     plt.show()
 
 
-def plot_handful_p(clusters, cumulative=False):
+def plot_cluster_p_distribution(clusters, cumulative=False):
     ni = clusters[:, 0]
     fi = clusters[:, 1]
     total = np.product([np.power(f, ni[i], dtype=float) for (i, f) in enumerate(fi)])
-    data = np.trim_zeros(handful_p_set(clusters))
+    data = np.trim_zeros(cluster_p_distribution(clusters))
     if cumulative:
         data = np.cumsum(data)
     x = range(np.sum(ni), np.sum(ni * fi) + 1)
@@ -114,14 +127,5 @@ def plot_handful_p(clusters, cumulative=False):
 
 
 if __name__ == "__main__":
-    # test_dice = [(1, 4), (2, 6)]
-    # print(expected_result(test_dice))
-    # clusters = np.array([[10, 100], [50, 50], [100, 10]])
-    # print(handful_N(clusters, 320))
-    # clusters = [(1, 6), (1, 6)]
-    # print(handful_N(clusters, 7))
-    # print(np.polymul([1, 0], [1, 0]))
-    clusters = np.array([[1, 4], [1, 6], [1, 8]])
-    plot_handful_p(clusters, cumulative=True)
-    plot_handful_p(clusters, cumulative=False)
-    plot_handful_n(clusters)
+    test_dice = np.array([[1, 4], [2, 6]])
+    plot_cluster_p_distribution(test_dice)
